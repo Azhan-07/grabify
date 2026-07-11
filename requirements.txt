@@ -1,0 +1,8 @@
+flask
+flask-cors
+flask-limiter
+waitress
+yt-dlp
+requests
+PyQt5
+PyQtWebEngine
