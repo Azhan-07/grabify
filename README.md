@@ -1,11 +1,3 @@
----
-title: Grabify
-emoji: 🎬
-colorFrom: purple
-colorTo: blue
-sdk: docker
-pinned: false
----
 
 # 🎬 Grabify — Video & Audio Downloader
 
