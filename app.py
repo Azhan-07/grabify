@@ -212,6 +212,7 @@ def health_check():
 
 
 if __name__ == "__main__":
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
-    serve(flask_app, host="0.0.0.0", port=port)
+    serve(flask_app, host=host, port=port, threads=8)

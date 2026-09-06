@@ -21,6 +21,10 @@ BOT_DETECTION_ERRORS = [
     "unusual traffic",
     "verify you are human",
     "captcha",
+    "HTTP Error 403",
+    "unable to download",
+    "forbidden",
+    "too many requests",
 ]
 
 
@@ -75,7 +79,7 @@ def _build_ydl_opts(url, quality, download_id, audio_only=False, audio_bitrate=1
         "quiet": True,
         "noplaylist": True,
         "postprocessors": postprocessors,
-        "ignoreerrors": True,
+        "ignoreerrors": False,
         "no_warnings": True,
         "extract_flat": False,
         "socket_timeout": 30,
