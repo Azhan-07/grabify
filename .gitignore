@@ -28,3 +28,4 @@ downloads/*.webm
 downloads/*.mkv
 downloads/music/*.mp3
 cookies.txt
+.vercel

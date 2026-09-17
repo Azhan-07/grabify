@@ -20,6 +20,7 @@ from downloader import (
     active_downloads,
     cleanup_old_downloads,
     download_file_sync,
+    YT_EXTRACTOR_ARGS,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ def get_video_info():
             "quiet": True,
             "skip_download": True,
             "no_warnings": True,
+            "extractor_args": YT_EXTRACTOR_ARGS,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

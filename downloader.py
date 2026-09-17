@@ -15,6 +15,15 @@ active_downloads = {}
 
 MAX_RETRIES = 2
 
+YT_EXTRACTOR_ARGS = {
+    "youtube": {
+        # YouTube blocks datacenter/cloud IPs when using the default `web` client
+        # (HTTP 403 "Sign in to confirm you're not a bot"). The ios/tv/android
+        # clients are much more lenient and work from serverless runtimes.
+        "player_client": ["ios", "tv", "android", "web"],
+    }
+}
+
 BOT_DETECTION_ERRORS = [
     "Sign in to confirm",
     "bot",
@@ -95,6 +104,7 @@ def _build_ydl_opts(url, quality, download_id, audio_only=False, audio_bitrate=1
         "socket_timeout": 30,
         "retries": 5,
         "fragment_retries": 5,
+        "extractor_args": YT_EXTRACTOR_ARGS,
     }
 
     if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
