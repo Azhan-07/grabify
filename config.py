@@ -12,7 +12,6 @@ SERVERLESS = bool(
 BASE_DIR = "/tmp" if SERVERLESS else os.getcwd()
 DOWNLOAD_FOLDER = os.path.join(BASE_DIR, "downloads")
 MUSIC_FOLDER = os.path.join(DOWNLOAD_FOLDER, "music")
-COOKIES_FILE = os.environ.get("GRABIFY_COOKIES_FILE", "cookies.txt")
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 os.makedirs(MUSIC_FOLDER, exist_ok=True)
@@ -23,6 +22,41 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+
+def _resolve_cookies_file():
+    """Return a usable cookies file path, or None.
+
+    Local mode: reads ``GRABIFY_COOKIES_FILE`` (default ``cookies.txt``).
+    Serverless mode: the filesystem is read-only except /tmp, so cookies must
+    be supplied through the ``GRABIFY_COOKIES`` env var (raw Netscape format or
+    base64-encoded). They are decoded to /tmp/cookies.txt on import.
+    """
+    if SERVERLESS:
+        raw = os.environ.get("GRABIFY_COOKIES", "")
+        if raw:
+            try:
+                import base64
+
+                content = base64.b64decode(raw).decode("utf-8", errors="replace")
+                if "# Netscape" not in content[:500]:
+                    content = raw
+            except Exception:
+                content = raw
+            try:
+                path = os.path.join("/tmp", "cookies.txt")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content if content.endswith("\n") else content + "\n")
+                logging.getLogger(__name__).info("Loaded cookies from GRABIFY_COOKIES env var")
+                return path
+            except Exception:
+                return None
+        return None
+    path = os.environ.get("GRABIFY_COOKIES_FILE", "cookies.txt")
+    return path if os.path.isfile(path) else None
+
+
+COOKIES_FILE = _resolve_cookies_file()
 
 
 def get_ffmpeg_path():

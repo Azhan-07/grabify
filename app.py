@@ -116,7 +116,12 @@ def get_video_info():
     except Exception as e:
         logger.error("Error fetching video info: %s\n%s", str(e), traceback.format_exc())
         error_msg = str(e)
-        if "Sign in to confirm" in error_msg or "bot" in error_msg.lower():
+        if "Sign in to confirm" in error_msg or "bot" in error_msg.lower() or "HTTP Error 403" in error_msg:
+            if SERVERLESS:
+                return jsonify({
+                    "success": False,
+                    "error": "YouTube is blocking this server's cloud IP. Add your browser cookies to the GRABIFY_COOKIES environment variable to enable YouTube.",
+                }), 403
             return jsonify({
                 "success": False,
                 "error": "YouTube is blocking automated access (bot detection). Please try again later or provide a cookies.txt file.",

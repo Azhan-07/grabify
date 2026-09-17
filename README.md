@@ -84,6 +84,8 @@ Or connect the GitHub repository in the Vercel dashboard and it deploys on every
 
 The UI automatically handles both flows — it downloads the file directly when the server responds with a file, and falls back to progress polling otherwise.
 
+> **YouTube on Vercel:** YouTube blocks automated access from cloud/serverless IPs by default. Install the *Get cookies.txt LOCALLY* browser extension, export your YouTube session as a **Netscape**-format file, and paste its contents (base64 or raw) into the `GRABIFY_COOKIES` environment variable in Vercel → Settings → Environment Variables. After a redeploy, YouTube downloads work. Instagram, Facebook, TikTok and other platforms work without this.
+
 ---
 
 ## ⚙️ Configuration
@@ -92,7 +94,8 @@ The UI automatically handles both flows — it downloads the file directly when 
 | --- | --- | --- |
 | `PORT` | `5000` (web) / `7860` (Docker) | Port the server listens on |
 | `LOG_LEVEL` | `INFO` | Logging verbosity (`DEBUG`, `INFO`, etc.) |
-| `GRABIFY_COOKIES_FILE` | `cookies.txt` | Path to a browser-cookies file for bot/age-restriction workarounds |
+| `GRABIFY_COOKIES_FILE` | `cookies.txt` | Path to a browser-cookies file for bot/age-restriction workarounds (local/Docker) |
+| `GRABIFY_COOKIES` | — | **Serverless only.** Raw Netscape-format or base64 cookies, decoded to `/tmp/cookies.txt`. Add this in Vercel → Settings → Environment Variables to fix YouTube bot-detection on cloud IPs |
 
 ---
 

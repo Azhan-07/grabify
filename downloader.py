@@ -5,7 +5,7 @@ import traceback
 
 import yt_dlp
 
-from config import DOWNLOAD_FOLDER, MUSIC_FOLDER, COOKIES_FILE, get_ffmpeg_path
+from config import DOWNLOAD_FOLDER, MUSIC_FOLDER, COOKIES_FILE, SERVERLESS, get_ffmpeg_path
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ YT_EXTRACTOR_ARGS = {
         # YouTube blocks datacenter/cloud IPs when using the default `web` client
         # (HTTP 403 "Sign in to confirm you're not a bot"). The ios/tv/android
         # clients are much more lenient and work from serverless runtimes.
-        "player_client": ["ios", "tv", "android", "web"],
+        "player_client": ["ios", "web_safari", "tv", "mweb", "android", "web"],
     }
 }
 
@@ -47,6 +47,12 @@ def _is_bot_detection(error_msg):
 def _get_error_message(exc):
     msg = str(exc)
     if _is_bot_detection(msg):
+        if SERVERLESS:
+            return (
+                "YouTube is blocking automated downloads from this server's cloud IP. "
+                "Add your browser cookies to the GRABIFY_COOKIES environment variable "
+                "(Settings > Environment Variables) to enable YouTube downloads."
+            )
         return (
             "YouTube is blocking automated downloads (bot detection). "
             "Try placing a cookies.txt file in the project root, or "
