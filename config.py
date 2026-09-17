@@ -1,9 +1,17 @@
 import logging
 import os
+import shutil
 from datetime import timedelta
 
-DOWNLOAD_FOLDER = "downloads"
-MUSIC_FOLDER = "downloads/music"
+SERVERLESS = bool(
+    os.environ.get("VERCEL")
+    or os.environ.get("VERCEL_ENV")
+    or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+)
+
+BASE_DIR = "/tmp" if SERVERLESS else os.getcwd()
+DOWNLOAD_FOLDER = os.path.join(BASE_DIR, "downloads")
+MUSIC_FOLDER = os.path.join(DOWNLOAD_FOLDER, "music")
 COOKIES_FILE = os.environ.get("GRABIFY_COOKIES_FILE", "cookies.txt")
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
@@ -17,10 +25,28 @@ logging.basicConfig(
 )
 
 
+def get_ffmpeg_path():
+    """Return a usable ffmpeg/avconv binary path or None.
+
+    Prefers a system binary, falls back to the statically bundled
+    imageio-ffmpeg binary so audio extraction and format merging work
+    even inside serverless runtimes without ffmpeg installed.
+    """
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+
+
 class ProductionConfig:
     SERVER_NAME = None
-    PREFERRED_URL_SCHEME = "http"
-    SESSION_COOKIE_SECURE = False
+    PREFERRED_URL_SCHEME = "https" if SERVERLESS else "http"
+    SESSION_COOKIE_SECURE = SERVERLESS
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     PERMANENT_SESSION_LIFETIME = timedelta(hours=2)

@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 7860
 
-CMD waitress-serve --host=0.0.0.0 --port=${PORT:-7860} --threads=8 app:flask_app
+CMD waitress-serve --host=0.0.0.0 --port=${PORT:-7860} --threads=8 app:app

@@ -37,7 +37,7 @@ def main():
             print(f"Installing {package}...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
-    from app import flask_app
+    from app import app as flask_app
 
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5000))

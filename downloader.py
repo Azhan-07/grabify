@@ -5,7 +5,7 @@ import traceback
 
 import yt_dlp
 
-from config import DOWNLOAD_FOLDER, MUSIC_FOLDER, COOKIES_FILE
+from config import DOWNLOAD_FOLDER, MUSIC_FOLDER, COOKIES_FILE, get_ffmpeg_path
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +52,19 @@ def _get_error_message(exc):
     return "An error occurred while processing your request. Please try again."
 
 
-def _build_ydl_opts(url, quality, download_id, audio_only=False, audio_bitrate=128):
+def _build_ydl_opts(url, quality, download_id, audio_only=False, audio_bitrate=128, outdir=None):
+    if outdir:
+        video_dir = outdir
+        music_dir = os.path.join(outdir, "music")
+        os.makedirs(outdir, exist_ok=True)
+        os.makedirs(music_dir, exist_ok=True)
+    else:
+        video_dir = DOWNLOAD_FOLDER
+        music_dir = MUSIC_FOLDER
+
     if audio_only:
         format_code = "bestaudio/best"
-        outtmpl = os.path.join(MUSIC_FOLDER, "%(title)s.%(ext)s")
+        outtmpl = os.path.join(music_dir, "%(title)s.%(ext)s")
         postprocessors = [
             {
                 "key": "FFmpegExtractAudio",
@@ -69,7 +78,7 @@ def _build_ydl_opts(url, quality, download_id, audio_only=False, audio_bitrate=1
         else:
             quality_num = quality.replace("p", "")
             format_code = f"bestvideo[height<={quality_num}]+bestaudio/best"
-        outtmpl = os.path.join(DOWNLOAD_FOLDER, "%(title)s.%(ext)s")
+        outtmpl = os.path.join(video_dir, "%(title)s.%(ext)s")
         postprocessors = []
 
     opts = {
@@ -82,13 +91,22 @@ def _build_ydl_opts(url, quality, download_id, audio_only=False, audio_bitrate=1
         "ignoreerrors": False,
         "no_warnings": True,
         "extract_flat": False,
+        "concurrent_fragment_downloads": 4,
         "socket_timeout": 30,
-        "retries": 3,
+        "retries": 5,
+        "fragment_retries": 5,
     }
 
     if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
         logger.info("Using cookies from %s", COOKIES_FILE)
+
+    ffmpeg_path = get_ffmpeg_path()
+    if ffmpeg_path:
+        opts["ffmpeg_location"] = ffmpeg_path
+        logger.info("Using ffmpeg binary at %s", ffmpeg_path)
+    else:
+        logger.warning("ffmpeg not found - MP3 extraction and stream merging will be unavailable")
 
     return opts
 
@@ -186,6 +204,71 @@ class DownloadHandler:
             "error": error_msg,
         }
         logger.error("Download failed after %d attempts: %s", MAX_RETRIES, last_error)
+
+
+class DownloadError(Exception):
+    pass
+
+
+def download_file_sync(url, quality, audio_only=False, audio_bitrate=128, outdir=None):
+    """Synchronous download for serverless runtimes.
+
+    Downloads the media into ``outdir`` (or the configured download
+    folders when ``outdir`` is None) and returns the final path on disk.
+    Raises :class:`DownloadError` with a user-friendly message on failure.
+    """
+    if outdir:
+        os.makedirs(outdir, exist_ok=True)
+
+    last_error = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            ydl_opts = _build_ydl_opts(
+                url, quality, "sync", audio_only, audio_bitrate, outdir=outdir
+            )
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+
+                if info is None:
+                    raise RuntimeError("No video data returned.")
+                if isinstance(info, list):
+                    info = info[0] if info else None
+                    if info is None:
+                        raise RuntimeError("No video data returned.")
+
+                if audio_only:
+                    title = info.get("title", "audio")
+                    if title:
+                        title = title.replace("/", "_").replace("\\", "_")
+                    music_dir = os.path.join(outdir, "music") if outdir else MUSIC_FOLDER
+                    filename = os.path.join(music_dir, f"{title}.mp3")
+                else:
+                    filename = ydl.prepare_filename(info)
+                    if not os.path.exists(filename):
+                        base_name = os.path.splitext(filename)[0]
+                        for ext in [".mp4", ".mkv", ".webm", ".mp3", ".m4a"]:
+                            test_path = base_name + ext
+                            if os.path.exists(test_path):
+                                filename = test_path
+                                break
+
+                if not os.path.exists(filename):
+                    raise RuntimeError(
+                        "Download completed but the file could not be found on disk."
+                    )
+
+                logger.info("Sync download complete: %s", filename)
+                return filename
+
+        except Exception as e:
+            last_error = e
+            logger.warning("Sync download attempt %d failed: %s", attempt, e)
+            if attempt < MAX_RETRIES:
+                time.sleep(attempt)
+                continue
+            break
+
+    raise DownloadError(_get_error_message(last_error))
 
 
 def cleanup_old_downloads():

@@ -1,6 +1,7 @@
-flask
+flask>=3.0
 flask-cors
 flask-limiter
 waitress
 yt-dlp
 requests
+imageio-ffmpeg

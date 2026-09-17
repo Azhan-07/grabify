@@ -11,20 +11,28 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from config import ProductionConfig, format_duration, format_number, is_valid_url, DOWNLOAD_FOLDER, MUSIC_FOLDER
-from downloader import DownloadHandler, download_progress, download_complete, active_downloads, cleanup_old_downloads
+from config import ProductionConfig, format_duration, format_number, is_valid_url, SERVERLESS, DOWNLOAD_FOLDER, MUSIC_FOLDER
+from downloader import (
+    DownloadHandler,
+    DownloadError,
+    download_progress,
+    download_complete,
+    active_downloads,
+    cleanup_old_downloads,
+    download_file_sync,
+)
 
 logger = logging.getLogger(__name__)
 
-flask_app = Flask(__name__)
-flask_app.config["SECRET_KEY"] = secrets.token_hex(32)
-flask_app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
-flask_app.config.from_object(ProductionConfig)
-CORS(flask_app)
+app = Flask(__name__)
+app.config["SECRET_KEY"] = secrets.token_hex(32)
+app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
+app.config.from_object(ProductionConfig)
+CORS(app)
 
 limiter = Limiter(
     get_remote_address,
-    app=flask_app,
+    app=app,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
@@ -33,12 +41,12 @@ VALID_QUALITIES = {"best", "1080p", "720p", "480p", "360p"}
 VALID_BITRATES = {64, 128, 192, 320}
 
 
-@flask_app.route("/")
+@app.route("/")
 def index():
     return render_template("index.html")
 
 
-@flask_app.route("/api/info", methods=["POST"])
+@app.route("/api/info", methods=["POST"])
 @limiter.limit("10 per minute")
 def get_video_info():
     data = request.json
@@ -71,6 +79,18 @@ def get_video_info():
                 "instagram": "Instagram",
                 "facebook": "Facebook",
                 "tiktok": "TikTok",
+                "twitter": "X (Twitter)",
+                "reddit": "Reddit",
+                "pinterest": "Pinterest",
+                "vimeo": "Vimeo",
+                "dailymotion": "Dailymotion",
+                "twitch": "Twitch",
+                "linkedin": "LinkedIn",
+                "snapchat": "Snapchat",
+                "whatsapp": "WhatsApp",
+                "telegram": "Telegram",
+                "rumble": "Rumble",
+                "bitchute": "BitChute",
             }
             for key, value in platform_map.items():
                 if key in platform.lower():
@@ -102,7 +122,7 @@ def get_video_info():
         return jsonify({"success": False, "error": "Failed to fetch video information. Please check the URL and try again."}), 500
 
 
-@flask_app.route("/api/download", methods=["POST"])
+@app.route("/api/download", methods=["POST"])
 @limiter.limit("5 per minute")
 def download_video():
     data = request.json
@@ -130,6 +150,29 @@ def download_video():
     if audio_bitrate not in VALID_BITRATES:
         audio_bitrate = 128
 
+    if SERVERLESS:
+        import tempfile
+
+        try:
+            workdir = tempfile.mkdtemp(prefix="grabify-")
+            filepath = download_file_sync(
+                url, quality, audio_only, audio_bitrate, outdir=workdir
+            )
+            return send_file(
+                filepath,
+                as_attachment=True,
+                download_name=os.path.basename(filepath),
+            )
+        except DownloadError as e:
+            logger.error("Sync download failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+        except Exception as e:
+            logger.error("Sync download error: %s\n%s", str(e), traceback.format_exc())
+            return jsonify({
+                "success": False,
+                "error": "Download failed. The video may be private, unavailable, or too large for the serverless runtime.",
+            }), 500
+
     cleanup_old_downloads()
 
     download_id = secrets.token_hex(8)
@@ -155,7 +198,7 @@ def download_video():
     })
 
 
-@flask_app.route("/api/progress/<download_id>", methods=["GET"])
+@app.route("/api/progress/<download_id>", methods=["GET"])
 def get_progress(download_id):
     if not download_id or not isinstance(download_id, str):
         return jsonify({"success": False, "error": "Invalid download ID."}), 400
@@ -163,7 +206,7 @@ def get_progress(download_id):
     return jsonify({"success": True, "progress": progress})
 
 
-@flask_app.route("/api/status/<download_id>", methods=["GET"])
+@app.route("/api/status/<download_id>", methods=["GET"])
 def get_status(download_id):
     if not download_id or not isinstance(download_id, str):
         return jsonify({"success": False, "error": "Invalid download ID."}), 400
@@ -186,7 +229,7 @@ def get_status(download_id):
     return jsonify({"success": True, "status": "downloading"})
 
 
-@flask_app.route("/api/download-file/<filename>", methods=["GET"])
+@app.route("/api/download-file/<filename>", methods=["GET"])
 def download_file(filename):
     if not filename or "/" in filename or "\\" in filename or ".." in filename:
         return jsonify({"success": False, "error": "Invalid filename."}), 400
@@ -202,7 +245,7 @@ def download_file(filename):
         return jsonify({"success": False, "error": "File not found. It may have been cleaned up."}), 404
 
 
-@flask_app.route("/api/health", methods=["GET"])
+@app.route("/api/health", methods=["GET"])
 def health_check():
     return jsonify({
         "status": "healthy",
@@ -215,4 +258,4 @@ if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
-    serve(flask_app, host=host, port=port, threads=8)
+    serve(app, host=host, port=port, threads=8)

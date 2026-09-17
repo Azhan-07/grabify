@@ -18,7 +18,7 @@ Grabify is a lightweight, self-hosted media downloader built with **Flask**, **y
 - **Automatic retry logic** — smart retries with backoff when YouTube bot detection kicks in.
 - **Cookie support** — drop a `cookies.txt` file to bypass bot/age-restriction blocks.
 - **Cleanup on exit** — temp thumbnails and stale downloads are cleaned automatically.
-- **Deployable anywhere** — ready-made `Dockerfile` for Hugging Face Spaces / any Docker host.
+- **Deployable anywhere** — ready-made `Dockerfile` for Hugging Face Spaces / any Docker host, plus zero-config Vercel deployment.
 
 ---
 
@@ -42,7 +42,7 @@ Open **http://127.0.0.1:5000** in your browser.
 ### 2. Desktop App (PyQt5 wrapper)
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-desktop.txt
 python main.py
 ```
 
@@ -58,6 +58,31 @@ docker run -p 7860:7860 grabify
 ```
 
 Then visit **http://127.0.0.1:7860**. The image uses `ffmpeg` out of the box so audio extraction works immediately.
+
+---
+
+## ▲ Deploy to Vercel
+
+Grabify ships with zero-config Vercel support. Vercel auto-detects the Flask `app` instance in `app.py`, installs the server-only dependencies, and bundles FFmpeg (via `imageio-ffmpeg`) so MP3 extraction and format merging work inside the serverless runtime.
+
+**Deploy with the CLI:**
+
+```bash
+vercel           # preview deployment
+vercel --prod    # production deployment
+```
+
+Or connect the GitHub repository in the Vercel dashboard and it deploys on every push.
+
+### How it behaves on Vercel
+
+| Local / Docker | Vercel (serverless) |
+| --- | --- |
+| Background threads + progress polling (`/api/progress`, `/api/status`) | Synchronous download — the file is streamed straight back in the HTTP response |
+| Files saved in `downloads/` | Files written to `/tmp` (ephemeral) |
+| `vercel.json` sets the function `maxDuration` to **60s** (Hobby) | Larger files may hit this limit on smaller plans |
+
+The UI automatically handles both flows — it downloads the file directly when the server responds with a file, and falls back to progress polling otherwise.
 
 ---
 
@@ -129,14 +154,17 @@ Health check — returns status, timestamp, and active download count.
 
 ```
 grabify/
-├── app.py            # Flask server, routes, rate limiting
-├── downloader.py     # yt-dlp wrapper, progress hooks, retry logic
-├── config.py         # Paths, config, helpers (URL validation, formatting)
+├── app.py            # Flask server, routes, rate limiting, serverless mode
+├── downloader.py     # yt-dlp wrapper, progress hooks, retry logic, sync downloader
+├── config.py         # Paths, config, helpers (URL validation, formatting, ffmpeg)
 ├── main.py           # PyQt5 desktop entry point
 ├── ui.py             # PyQt5 window / embedded web view
 ├── templates/
 │   └── index.html    # Web UI
-├── requirements.txt  # Full deps (incl. PyQt5 desktop)
+├── vercel.json       # Vercel function config (maxDuration)
+├── .python-version   # Python 3.12 for Vercel
+├── requirements.txt  # Server deps (Flask, yt-dlp, imageio-ffmpeg, ...)
+├── requirements-desktop.txt  # PyQt5 desktop-only deps
 ├── requirements-hf.txt  # Server-only deps (Docker / HF Spaces)
 └── Dockerfile
 ```
@@ -145,7 +173,7 @@ grabify/
 
 ## 🛠️ Troubleshooting
 
-- **MP3 extraction fails** → Make sure `ffmpeg` is installed and on your `PATH`.
+- **MP3 extraction / format merging fails** → A system `ffmpeg` is preferred, otherwise the bundled `imageio-ffmpeg` binary is used automatically, so this rarely needs manual setup. To force your own build, add it to your `PATH`.
 - **Audio/video file not found after download** → Check the `downloads/` and `downloads/music/` folders; stale files are cleaned up hourly.
 - **YouTube bot detection** → Follow the [cookies](#-bot-detection--cookies) section above.
 - **Unsupported URL message** → Try updating `yt-dlp` (`pip install -U yt-dlp`); extractors change frequently.

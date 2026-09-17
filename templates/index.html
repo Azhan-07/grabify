@@ -734,6 +734,10 @@
                 <div class="platform-badge"><i class="fab fa-instagram"></i> Instagram</div>
                 <div class="platform-badge"><i class="fab fa-facebook"></i> Facebook</div>
                 <div class="platform-badge"><i class="fab fa-tiktok"></i> TikTok</div>
+                <div class="platform-badge"><i class="fab fa-x-twitter"></i> X</div>
+                <div class="platform-badge"><i class="fab fa-reddit"></i> Reddit</div>
+                <div class="platform-badge"><i class="fab fa-pinterest"></i> Pinterest</div>
+                <div class="platform-badge"><i class="fab fa-vimeo"></i> Vimeo</div>
             </div>
         </div>
 
@@ -962,6 +966,34 @@
                         audio_bitrate: parseInt(audioQuality)
                     })
                 });
+
+                var contentType = response.headers.get('Content-Type') || '';
+
+                if (!contentType.includes('application/json')) {
+                    if (!response.ok) {
+                        showToast('Download failed. Please try again.', 'error');
+                        showStatus('Download failed. Please try again.', 'error');
+                        resetDownload();
+                        return;
+                    }
+                    var blob = await response.blob();
+                    var objectUrl = window.URL.createObjectURL(blob);
+                    var link = document.createElement('a');
+                    link.href = objectUrl;
+                    var cd = response.headers.get('Content-Disposition') || '';
+                    var match = /filename="?([^";]+)"?/.exec(cd);
+                    link.download = match ? match[1] : 'grabify-download';
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    setTimeout(function() { window.URL.revokeObjectURL(objectUrl); }, 5000);
+                    document.getElementById('progressFill').style.width = '100%';
+                    document.getElementById('progressText').textContent = 'Complete!';
+                    showStatus('Download completed!', 'success');
+                    showToast('Download completed successfully!', 'success');
+                    setTimeout(function() { resetDownload(); }, 2000);
+                    return;
+                }
 
                 var data = await response.json();
 
